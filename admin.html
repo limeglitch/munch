@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>لوحة الأدمن — Mucnh</title>
+<!-- نستخدم نسخ compat لسهولة التشغيل من ملف HTML مباشرة -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+<style>
+  body{font-family:Tahoma, Arial; background:#0b1220; color:#fff; margin:0; padding:20px}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{margin:6px 0 18px;text-align:center}
+  .card{background:#0f1724;padding:16px;border-radius:10px;border:1px solid #1f2a44;margin-bottom:14px}
+  input, button{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:1px solid #294157;background:#071126;color:#fff}
+  button{cursor:pointer;background:#0ea5a4;border:none}
+  button.danger{background:#ef4444}
+  .muted{color:#94a3b8;font-size:13px}
+  .flex{display:flex;gap:10px;flex-wrap:wrap}
+  .product{display:inline-block;background:#071024;padding:8px;border-radius:8px;margin:8px;border:1px solid #172554;width:200px;text-align:center;vertical-align:top}
+  img.thumb{width:100%;height:120px;object-fit:cover;border-radius:6px}
+  #logs{white-space:pre-wrap;margin-top:10px;color:#ffcc80}
+  progress{width:100%;height:14px;border-radius:6px;overflow:hidden}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>لوحة تحكم الأدمن — Mucnh</h1>
+
+    <div id="loginCard" class="card">
+      <h3>🔐 دخول الأدمن</h3>
+      <input id="adminCode" type="password" placeholder="أدخل كود الأدمن" />
+      <button id="loginBtn">دخول</button>
+      <p class="muted">الصفحة تفتح فقط بكود الأدمن الصحيح.</p>
+    </div>
+
+    <div id="adminPanel" class="card hidden">
+      <h3>➕ إضافة منتج جديد</h3>
+
+      <form id="productForm">
+        <input id="pName" placeholder="اسم المنتج" required />
+        <input id="pPrice" type="number" placeholder="السعر (ج.م)" required />
+        <input id="pDiscount" type="number" placeholder="خصم % (اختياري)" />
+        <input id="pImage" type="file" accept="image/*" required />
+        <button id="addBtn" type="submit">إضافة المنتج</button>
+      </form>
+
+      <div id="uploader" class="card hidden">
+        <p class="muted">جاري رفع الصورة...</p>
+        <progress id="progress" value="0" max="100"></progress>
+        <div id="progressText" class="muted"></div>
+      </div>
+
+      <h3 style="margin-top:14px">📦 المنتجات الحالية</h3>
+      <div id="productsContainer"></div>
+    </div>
+
+    <div id="logs" class="muted"></div>
+  </div>
+
+<script>
+  try {
+    // === إعداد Firebase (تأكد أن storageBucket مطابق لمشروعك) ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxwgtbrA2RVCwEwbn5_FDRJ20cN-IYAl0",
+      authDomain: "cif225.firebaseapp.com",
+      projectId: "cif225",
+      storageBucket: "cif225.appspot.com",
+      messagingSenderId: "852933662256",
+      appId: "1:852933662256:web:e9ba1b9911f3b2e1ed3ff5",
+      measurementId: "G-J9WTSQ00YL"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+  } catch (e) {
+    console.error('firebase init error', e);
+    document.getElementById('logs').textContent = 'خطأ في تهيئة Firebase — راجع Console';
+  }
+
+  // عناصر DOM
+  const ADMIN_CODE = '286791';
+  const loginBtn = document.getElementById('loginBtn');
+  const adminCodeEl = document.getElementById('adminCode');
+  const loginCard = document.getElementById('loginCard');
+  const adminPanel = document.getElementById('adminPanel');
+
+  const productForm = document.getElementById('productForm');
+  const pName = document.getElementById('pName');
+  const pPrice = document.getElementById('pPrice');
+  const pDiscount = document.getElementById('pDiscount');
+  const pImage = document.getElementById('pImage');
+  const addBtn = document.getElementById('addBtn');
+
+  const uploader = document.getElementById('uploader');
+  const progressEl = document.getElementById('progress');
+  const progressText = document.getElementById('progressText');
+  const productsContainer = document.getElementById('productsContainer');
+  const logs = document.getElementById('logs');
+
+  // دخول الأدمن
+  loginBtn.addEventListener('click', () => {
+    const v = (adminCodeEl.value || '').trim();
+    if (v === ADMIN_CODE) {
+      loginCard.classList.add('hidden');
+      adminPanel.classList.remove('hidden');
+      startProductsListener();
+      logs.textContent = 'تم تسجيل الدخول كأدمن — تابع قائمة المنتجات أدناه.';
+      console.log('admin logged in');
+    } else {
+      alert('كود الأدمن غير صحيح');
+    }
+  });
+
+  // Start listening to products (real-time)
+  let unsubscribe = null;
+  function startProductsListener() {
+    try {
+      const q = db.collection('products').orderBy('createdAt','desc');
+      unsubscribe = q.onSnapshot(snapshot => {
+        productsContainer.innerHTML = '';
+        snapshot.forEach(doc => {
+          const p = doc.data();
+          const id = doc.id;
+          const div = document.createElement('div');
+          div.className = 'product';
+          div.innerHTML = `
+            <img class="thumb" src="${p.imageUrl || ''}" alt="${escapeHtml(p.name||'')}" />
+            <div style="padding-top:8px"><strong>${escapeHtml(p.name||'')}</strong></div>
+            <div class="muted">السعر: ${escapeHtml(String(p.price||''))} ج.م</div>
+            <div class="muted">خصم: ${escapeHtml(String(p.discount||0))}%</div>
+            <div style="margin-top:8px;display:flex;gap:6px;justify-content:center">
+              <button data-id="${id}" data-path="${escapeHtml(p.storagePath||'')}" class="delBtn danger">حذف</button>
+            </div>
+          `;
+          productsContainer.appendChild(div);
+
+          // delete handler
+          div.querySelector('.delBtn').addEventListener('click', async (ev) => {
+            const idToDelete = ev.currentTarget.getAttribute('data-id');
+            const storagePath = ev.currentTarget.getAttribute('data-path');
+            if (!confirm('متأكد تريد حذف المنتج؟')) return;
+            try {
+              await db.collection('products').doc(idToDelete).delete();
+              if (storagePath) {
+                await storage.ref(storagePath).delete().catch(()=>{});
+              }
+              console.log('product deleted', idToDelete);
+            } catch (err) {
+              console.error('delete error', err);
+              alert('حدث خطأ أثناء الحذف — افتح Console للمزيد');
+            }
+          });
+        });
+      }, err => {
+        console.error('onSnapshot error', err);
+        logs.textContent = 'خطأ في تحميل المنتجات — راجع Console';
+      });
+    } catch (err) {
+      console.error('startProductsListener error', err);
+      logs.textContent = 'خطأ في بداية الاستماع للمنتجات — راجع Console';
+    }
+  }
+
+  // handle add product (form submit)
+  productForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    addBtn.disabled = true;
+    logs.textContent = '';
+
+    const name = (pName.value||'').trim();
+    const price = Number(pPrice.value);
+    const discount = Number(pDiscount.value || 0);
+    const file = pImage.files[0];
+
+    if (!name || !price || !file) {
+      alert('املأ الاسم والسعر واختر صورة');
+      addBtn.disabled = false;
+      return;
+    }
+
+    try {
+      // show uploader
+      uploader.classList.remove('hidden');
+      progressEl.value = 0;
+      progressText.textContent = '0%';
+      // create unique storage path
+      const safeName = file.name.replace(/\s/g,'_');
+      const storagePath = `products/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${safeName}`;
+      const storageRef = storage.ref(storagePath);
+      const uploadTask = storageRef.put(file);
+
+      uploadTask.on('state_changed',
+        snapshot => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          progressEl.value = pct;
+          progressText.textContent = `رفع ${pct}%`;
+        },
+        error => {
+          console.error('upload error', error);
+          logs.textContent = 'فشل رفع الصورة — افتح Console للتفاصيل';
+          alert('فشل رفع الصورة: ' + (error.message || error));
+          addBtn.disabled = false;
+          uploader.classList.add('hidden');
+        },
+        async () => {
+          try {
+            const imageUrl = await uploadTask.snapshot.ref.getDownloadURL();
+            // save doc with storagePath so we can delete file later
+            await db.collection('products').add({
+              name,
+              price,
+              discount,
+              imageUrl,
+              storagePath,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            logs.textContent = 'تم إضافة المنتج بنجاح ✅';
+            productForm.reset();
+            uploader.classList.add('hidden');
+            addBtn.disabled = false;
+          } catch (err2) {
+            console.error('after upload error', err2);
+            logs.textContent = 'خطأ بعد رفع الصورة — راجع Console';
+            addBtn.disabled = false;
+            uploader.classList.add('hidden');
+          }
+        }
+      );
+    } catch (err) {
+      console.error('add product error', err);
+      logs.textContent = 'حدث خطأ عام — افتح Console';
+      alert('خطأ: ' + (err.message || err));
+      addBtn.disabled = false;
+      uploader.classList.add('hidden');
+    }
+  });
+
+  // small helper
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"'`]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',\"'\":\"&#39;\",'`':'&#96;'}[c])); }
+
+  // helpful debug hints shown on page
+  logs.textContent = 'لو الزر لا يستجيب: افتح Developer Console (F12) وانسخ أي رسالة خطأ هنا.\nإذا كانت الرسائل permission-denied فتح قواعد Firestore/Storage مؤقتة لازمة للكتابة أثناء التجربة.';
+</script>
+</body>
+          </html>
