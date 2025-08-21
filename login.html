@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>Mucnh | تسجيل الدخول</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    // إعدادات Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxwgtbrA2RVCwEwbn5_FDRJ20cN-IYAl0",
+      authDomain: "cif225.firebaseapp.com",
+      projectId: "cif225",
+      storageBucket: "cif225.firebasestorage.app",
+      messagingSenderId: "852933662256",
+      appId: "1:852933662256:web:e9ba1b9911f3b2e1ed3ff5",
+      measurementId: "G-J9WTSQ00YL"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // إنشاء حساب جديد
+    window.register = async function(e) {
+      e.preventDefault();
+      const name = document.getElementById("regName").value;
+      const email = document.getElementById("regEmail").value;
+      const password = document.getElementById("regPassword").value;
+
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: name });
+        alert("✅ تم إنشاء الحساب بنجاح");
+        window.location.href = "index.html";
+      } catch (error) {
+        alert("❌ " + error.message);
+      }
+    };
+
+    // تسجيل دخول
+    window.login = async function(e) {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        alert("✅ تم تسجيل الدخول");
+        window.location.href = "index.html";
+      } catch (error) {
+        alert("❌ " + error.message);
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: Tahoma, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #1d2671, #c33764);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background: rgba(0,0,0,0.6);
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0px 5px 15px rgba(0,0,0,0.5);
+      width: 350px;
+      text-align: center;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+    }
+    button {
+      width: 95%;
+      padding: 10px;
+      margin-top: 10px;
+      background: #ff9800;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #ff5722;
+    }
+    .toggle {
+      margin-top: 15px;
+      cursor: pointer;
+      color: #ffeb3b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 id="formTitle">🔐 تسجيل الدخول</h2>
+
+    <!-- تسجيل الدخول -->
+    <form id="loginForm" onsubmit="login(event)">
+      <input type="email" id="loginEmail" placeholder="📧 الإيميل" required>
+      <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" required>
+      <button type="submit">تسجيل الدخول</button>
+    </form>
+
+    <!-- إنشاء حساب -->
+    <form id="registerForm" style="display:none;" onsubmit="register(event)">
+      <input type="text" id="regName" placeholder="👤 الاسم" required>
+      <input type="email" id="regEmail" placeholder="📧 الإيميل" required>
+      <input type="password" id="regPassword" placeholder="🔑 كلمة المرور" required>
+      <button type="submit">إنشاء حساب</button>
+    </form>
+
+    <p class="toggle" onclick="toggleForms()">⬅️ إنشاء حساب جديد</p>
+  </div>
+
+  <script>
+    function toggleForms() {
+      const loginForm = document.getElementById("loginForm");
+      const registerForm = document.getElementById("registerForm");
+      const formTitle = document.getElementById("formTitle");
+      const toggleBtn = document.querySelector(".toggle");
+
+      if (loginForm.style.display === "none") {
+        loginForm.style.display = "block";
+        registerForm.style.display = "none";
+        formTitle.textContent = "🔐 تسجيل الدخول";
+        toggleBtn.textContent = "⬅️ إنشاء حساب جديد";
+      } else {
+        loginForm.style.display = "none";
+        registerForm.style.display = "block";
+        formTitle.textContent = "📝 إنشاء حساب";
+        toggleBtn.textContent = "⬅️ عندك حساب؟ سجل دخول";
+      }
+    }
+  </script>
+</body>
+</html>
