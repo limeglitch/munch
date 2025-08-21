@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة الأدمن - Mucnh</title>
+  <script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxwgtbrA2RVCwEwbn5_FDRJ20cN-IYAl0",
+      authDomain: "cif225.firebaseapp.com",
+      projectId: "cif225",
+      storageBucket: "cif225.appspot.com",
+      messagingSenderId: "852933662256",
+      appId: "1:852933662256:web:e9ba1b9911f3b2e1ed3ff5",
+      measurementId: "G-J9WTSQ00YL"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // تحقق من الأدمن
+    function checkAdminLogin() {
+      const user = prompt("ادخل كود الأدمن:");
+      if (user !== "286791") {
+        alert("🚫 دخول مرفوض");
+        window.location.href = "index.html";
+      }
+    }
+
+    window.onload = () => {
+      checkAdminLogin();
+
+      // تحميل الطلبات مباشر (Real-time)
+      const ordersList = document.getElementById("ordersList");
+      onSnapshot(collection(db, "orders"), (snapshot) => {
+        ordersList.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const order = doc.data();
+          const li = document.createElement("li");
+          li.textContent = `📦 ${order.productName} - ${order.customer} (${order.date})`;
+          ordersList.appendChild(li);
+        });
+      });
+
+      // رفع منتج جديد
+      document.getElementById("addProductForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document.getElementById("pname").value;
+        const price = document.getElementById("pprice").value;
+        const discount = document.getElementById("pdiscount").value;
+        const imageFile = document.getElementById("pimage").files[0];
+
+        if (!imageFile) {
+          alert("📷 من فضلك اختر صورة للمنتج");
+          return;
+        }
+
+        // رفع الصورة لـ Firebase Storage
+        const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(storageRef, imageFile);
+        const imageUrl = await getDownloadURL(storageRef);
+
+        // حفظ بيانات المنتج
+        await addDoc(collection(db, "products"), {
+          name,
+          price,
+          discount,
+          image: imageUrl,
+          createdAt: new Date().toISOString()
+        });
+
+        alert("✅ تم إضافة المنتج بنجاح!");
+        e.target.reset();
+      });
+    };
+  </script>
+  <style>
+    body {
+      font-family: "Cairo", sans-serif;
+      background: linear-gradient(135deg, #2c3e50, #3498db);
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    form {
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    input {
+      padding: 10px;
+      margin: 10px;
+      border: none;
+      border-radius: 5px;
+      width: 80%;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #e67e22;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #d35400;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: rgba(255,255,255,0.2);
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>لوحة الأدمن - 🛠 Mucnh</h1>
+
+  <form id="addProductForm">
+    <h2>➕ إضافة منتج جديد</h2>
+    <input type="text" id="pname" placeholder="اسم المنتج" required><br>
+    <input type="number" id="pprice" placeholder="السعر" required><br>
+    <input type="number" id="pdiscount" placeholder="الخصم %" required><br>
+    <input type="file" id="pimage" accept="image/*" required><br>
+    <button type="submit">إضافة المنتج</button>
+  </form>
+
+  <h2>📩 الطلبات الجديدة</h2>
+  <ul id="ordersList"></ul>
+</body>
+</html>
