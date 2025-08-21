@@ -1,110 +1,141 @@
-<!DOCTYPE html><html lang="ar">
+<!DOCTYPE html>
+<html lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>لوحة تحكم الأدمن</title>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #fff; text-align:center; padding:20px; }
-    .hidden { display: none; }
-    .card { background:#222; padding:20px; border-radius:12px; margin:15px auto; width:300px; }
-    input, button { display:block; margin:10px auto; padding:10px; border:none; border-radius:8px; }
-    button { background:#4CAF50; color:#fff; cursor:pointer; }
-    button:hover { background:#45a049; }
-    .product { background:#333; margin:10px; padding:10px; border-radius:10px; }
-  </style>
-</head>
-<body>
-  <h1>🛠️ لوحة تحكم الأدمن</h1>  <!-- تسجيل دخول الأدمن -->  <div id="adminLogin" class="card">
-    <h2>تسجيل دخول الأدمن</h2>
-    <input type="password" id="adminPass" placeholder="ادخل كود الأدمن">
-    <button onclick="checkAdmin()">دخول</button>
-  </div>  <!-- لوحة الأدمن -->  <div id="adminPanel" class="hidden">
-    <h2>إضافة منتج جديد</h2>
-    <input type="text" id="productName" placeholder="اسم المنتج">
-    <input type="number" id="productPrice" placeholder="السعر">
-    <input type="number" id="productDiscount" placeholder="خصم % (اختياري)">
-    <input type="file" id="productImage">
-    <button onclick="addProduct()">➕ إضافة المنتج</button><h2>📦 المنتجات الحالية</h2>
-<div id="productsList"></div>
+  <title>Mucnh | المنتجات</title>
+  <script type="module">
+    // Firebase Imports
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-  </div>  <script>
-    // Firebase Config
+    // إعدادات Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyDxwgtbrA2RVCwEwbn5_FDRJ20cN-IYAl0",
       authDomain: "cif225.firebaseapp.com",
       projectId: "cif225",
-      storageBucket: "cif225.appspot.com",
+      storageBucket: "cif225.firebasestorage.app",
       messagingSenderId: "852933662256",
       appId: "1:852933662256:web:e9ba1b9911f3b2e1ed3ff5",
       measurementId: "G-J9WTSQ00YL"
     };
 
-    const app = firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const storage = firebase.storage();
+    // تشغيل Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    const ADMIN_CODE = "286791";
-
-    function checkAdmin() {
-      let pass = document.getElementById("adminPass").value;
-      if (pass === ADMIN_CODE) {
-        document.getElementById("adminLogin").classList.add("hidden");
-        document.getElementById("adminPanel").classList.remove("hidden");
-        loadProducts();
-      } else {
-        alert("❌ كود الأدمن غير صحيح");
-      }
+    // تحميل المنتجات
+    async function loadProducts() {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      const container = document.getElementById("products");
+      container.innerHTML = "";
+      querySnapshot.forEach((doc) => {
+        const product = doc.data();
+        const div = document.createElement("div");
+        div.className = "product-card";
+        div.innerHTML = `
+          <h3>${product.name}</h3>
+          <p>${product.description}</p>
+          <p>💲 ${product.price} EGP</p>
+          <button onclick="orderProduct('${doc.id}', '${product.name}')">اطلب الآن</button>
+        `;
+        container.appendChild(div);
+      });
     }
 
-    async function addProduct() {
-      const name = document.getElementById("productName").value;
-      const price = document.getElementById("productPrice").value;
-      const discount = document.getElementById("productDiscount").value;
-      const imageFile = document.getElementById("productImage").files[0];
-
-      if (!name || !price || !imageFile) {
-        alert("⚠️ من فضلك أدخل كل البيانات الأساسية");
+    // طلب منتج
+    window.orderProduct = async function(productId, productName) {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("⚠️ لازم تسجل دخول الأول");
+        window.location.href = "login.html";
         return;
       }
-
-      const storageRef = storage.ref('products/' + imageFile.name);
-      await storageRef.put(imageFile);
-      const imageUrl = await storageRef.getDownloadURL();
-
-      await db.collection("products").add({
-        name: name,
-        price: parseFloat(price),
-        discount: discount ? parseFloat(discount) : 0,
-        imageUrl: imageUrl
+      await addDoc(collection(db, "orders"), {
+        userId: user.uid,
+        productId: productId,
+        productName: productName,
+        status: "pending",
+        createdAt: new Date()
       });
+      alert("✅ تم إرسال طلبك للإدارة");
+    }
 
-      alert("✅ تم إضافة المنتج");
+    // عند تحميل الصفحة
+    window.onload = () => {
       loadProducts();
+    };
+  </script>
+  <style>
+    body {
+      font-family: Tahoma, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: white;
     }
-
-    async function loadProducts() {
-      const productsList = document.getElementById("productsList");
-      productsList.innerHTML = "";
-
-      const snapshot = await db.collection("products").get();
-      snapshot.forEach(doc => {
-        const p = doc.data();
-        productsList.innerHTML += `
-          <div class="product">
-            <img src="${p.imageUrl}" width="100"><br>
-            <strong>${p.name}</strong><br>
-            السعر: ${p.price} ج.م <br>
-            ${p.discount ? "خصم: " + p.discount + "%" : ""}<br>
-            <button onclick="deleteProduct('${doc.id}')">🗑 حذف</button>
-          </div>`;
-      });
+    header {
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 30px;
     }
+    header img {
+      height: 50px;
+    }
+    nav a {
+      color: white;
+      margin: 0 10px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    #products {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+      padding: 20px;
+    }
+    .product-card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0px 5px 15px rgba(0,0,0,0.4);
+      transition: 0.3s;
+    }
+    .product-card:hover {
+      transform: scale(1.05);
+    }
+    button {
+      background: #ff9800;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #ff5722;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://i.postimg.cc/tTyX45vS/FB-IMG-1755790246223.jpg" alt="Mucnh Logo">
+    <nav>
+      <a href="login.html">تسجيل دخول / إنشاء حساب</a>
+      <a href="admin.html">لوحة الأدمن</a>
+    </nav>
+  </header>
 
-    async function deleteProduct(id) {
-      await db.collection("products").doc(id).delete();
-      alert("🗑️ تم حذف المنتج");
+  <main>
+    <h1 style="text-align:center; padding:20px;">🛍 منتجاتنا</h1>
+    <div id="products"></div>
+  </main>
+</body>
+</html>      alert("🗑️ تم حذف المنتج");
       loadProducts();
     }
   </script></body>
