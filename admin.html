@@ -1,14 +1,35 @@
-<!DOCTYPE html>
-<html lang="ar">
+<!DOCTYPE html><html lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>لوحة الأدمن - Mucnh</title>
-  <script type="module">
-    // Firebase SDKs
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+  <title>لوحة تحكم الأدمن</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #fff; text-align:center; padding:20px; }
+    .hidden { display: none; }
+    .card { background:#222; padding:20px; border-radius:12px; margin:15px auto; width:300px; }
+    input, button { display:block; margin:10px auto; padding:10px; border:none; border-radius:8px; }
+    button { background:#4CAF50; color:#fff; cursor:pointer; }
+    button:hover { background:#45a049; }
+    .product { background:#333; margin:10px; padding:10px; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <h1>🛠️ لوحة تحكم الأدمن</h1>  <!-- تسجيل دخول الأدمن -->  <div id="adminLogin" class="card">
+    <h2>تسجيل دخول الأدمن</h2>
+    <input type="password" id="adminPass" placeholder="ادخل كود الأدمن">
+    <button onclick="checkAdmin()">دخول</button>
+  </div>  <!-- لوحة الأدمن -->  <div id="adminPanel" class="hidden">
+    <h2>إضافة منتج جديد</h2>
+    <input type="text" id="productName" placeholder="اسم المنتج">
+    <input type="number" id="productPrice" placeholder="السعر">
+    <input type="number" id="productDiscount" placeholder="خصم % (اختياري)">
+    <input type="file" id="productImage">
+    <button onclick="addProduct()">➕ إضافة المنتج</button><h2>📦 المنتجات الحالية</h2>
+<div id="productsList"></div>
 
+  </div>  <script>
     // Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyDxwgtbrA2RVCwEwbn5_FDRJ20cN-IYAl0",
@@ -20,127 +41,71 @@
       measurementId: "G-J9WTSQ00YL"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
 
-    // تحقق من الأدمن
-    function checkAdminLogin() {
-      const user = prompt("ادخل كود الأدمن:");
-      if (user !== "286791") {
-        alert("🚫 دخول مرفوض");
-        window.location.href = "index.html";
+    const ADMIN_CODE = "286791";
+
+    function checkAdmin() {
+      let pass = document.getElementById("adminPass").value;
+      if (pass === ADMIN_CODE) {
+        document.getElementById("adminLogin").classList.add("hidden");
+        document.getElementById("adminPanel").classList.remove("hidden");
+        loadProducts();
+      } else {
+        alert("❌ كود الأدمن غير صحيح");
       }
     }
 
-    window.onload = () => {
-      checkAdminLogin();
+    async function addProduct() {
+      const name = document.getElementById("productName").value;
+      const price = document.getElementById("productPrice").value;
+      const discount = document.getElementById("productDiscount").value;
+      const imageFile = document.getElementById("productImage").files[0];
 
-      // تحميل الطلبات مباشر (Real-time)
-      const ordersList = document.getElementById("ordersList");
-      onSnapshot(collection(db, "orders"), (snapshot) => {
-        ordersList.innerHTML = "";
-        snapshot.forEach((doc) => {
-          const order = doc.data();
-          const li = document.createElement("li");
-          li.textContent = `📦 ${order.productName} - ${order.customer} (${order.date})`;
-          ordersList.appendChild(li);
-        });
+      if (!name || !price || !imageFile) {
+        alert("⚠️ من فضلك أدخل كل البيانات الأساسية");
+        return;
+      }
+
+      const storageRef = storage.ref('products/' + imageFile.name);
+      await storageRef.put(imageFile);
+      const imageUrl = await storageRef.getDownloadURL();
+
+      await db.collection("products").add({
+        name: name,
+        price: parseFloat(price),
+        discount: discount ? parseFloat(discount) : 0,
+        imageUrl: imageUrl
       });
 
-      // رفع منتج جديد
-      document.getElementById("addProductForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const name = document.getElementById("pname").value;
-        const price = document.getElementById("pprice").value;
-        const discount = document.getElementById("pdiscount").value;
-        const imageFile = document.getElementById("pimage").files[0];
+      alert("✅ تم إضافة المنتج");
+      loadProducts();
+    }
 
-        if (!imageFile) {
-          alert("📷 من فضلك اختر صورة للمنتج");
-          return;
-        }
+    async function loadProducts() {
+      const productsList = document.getElementById("productsList");
+      productsList.innerHTML = "";
 
-        // رفع الصورة لـ Firebase Storage
-        const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(storageRef, imageFile);
-        const imageUrl = await getDownloadURL(storageRef);
-
-        // حفظ بيانات المنتج
-        await addDoc(collection(db, "products"), {
-          name,
-          price,
-          discount,
-          image: imageUrl,
-          createdAt: new Date().toISOString()
-        });
-
-        alert("✅ تم إضافة المنتج بنجاح!");
-        e.target.reset();
+      const snapshot = await db.collection("products").get();
+      snapshot.forEach(doc => {
+        const p = doc.data();
+        productsList.innerHTML += `
+          <div class="product">
+            <img src="${p.imageUrl}" width="100"><br>
+            <strong>${p.name}</strong><br>
+            السعر: ${p.price} ج.م <br>
+            ${p.discount ? "خصم: " + p.discount + "%" : ""}<br>
+            <button onclick="deleteProduct('${doc.id}')">🗑 حذف</button>
+          </div>`;
       });
-    };
-  </script>
-  <style>
-    body {
-      font-family: "Cairo", sans-serif;
-      background: linear-gradient(135deg, #2c3e50, #3498db);
-      color: white;
-      text-align: center;
-      padding: 20px;
     }
-    h1 {
-      margin-bottom: 20px;
-    }
-    form {
-      background: rgba(255,255,255,0.1);
-      padding: 20px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-    }
-    input {
-      padding: 10px;
-      margin: 10px;
-      border: none;
-      border-radius: 5px;
-      width: 80%;
-    }
-    button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      background: #e67e22;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #d35400;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      background: rgba(255,255,255,0.2);
-      padding: 10px;
-      margin: 5px 0;
-      border-radius: 6px;
-    }
-  </style>
-</head>
-<body>
-  <h1>لوحة الأدمن - 🛠 Mucnh</h1>
 
-  <form id="addProductForm">
-    <h2>➕ إضافة منتج جديد</h2>
-    <input type="text" id="pname" placeholder="اسم المنتج" required><br>
-    <input type="number" id="pprice" placeholder="السعر" required><br>
-    <input type="number" id="pdiscount" placeholder="الخصم %" required><br>
-    <input type="file" id="pimage" accept="image/*" required><br>
-    <button type="submit">إضافة المنتج</button>
-  </form>
-
-  <h2>📩 الطلبات الجديدة</h2>
-  <ul id="ordersList"></ul>
-</body>
+    async function deleteProduct(id) {
+      await db.collection("products").doc(id).delete();
+      alert("🗑️ تم حذف المنتج");
+      loadProducts();
+    }
+  </script></body>
 </html>
